@@ -1,7 +1,8 @@
 /* Trip Weather service worker: app shell cache-first (revalidated), APIs network-only. */
-const VERSION = 'tw-v2'; // bump on every release so installed PWAs re-fetch the shell
+const VERSION = 'tw-v3'; // bump on every release so installed PWAs re-fetch the shell
 const SHELL = ['./', 'index.html', 'styles.css', 'lib.js', 'app.js', 'manifest.webmanifest',
-  'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
+  'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
+  'css/fa.css', 'fonts/fa-solid-900.woff2'];
 const RUNTIME = 'tw-runtime-v1'; // Leaflet lib from unpkg only
 
 self.addEventListener('install', (e) => {

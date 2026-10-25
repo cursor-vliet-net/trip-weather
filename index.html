@@ -15,12 +15,22 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png" type="image/png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="css/fa.css">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <div id="install" class="install" hidden>
+    <div class="install-bar">
+      <button type="button" id="install-btn" class="install-btn"><i class="fa-solid fa-download" aria-hidden="true"></i> <span>Install app</span></button>
+      <span class="install-sub">Add to your home screen</span>
+      <button type="button" id="install-x" class="install-x" title="Hide for 7 days" aria-label="Hide install banner for 7 days"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+    </div>
+    <div id="install-help" class="install-help" role="note" hidden></div>
+  </div>
+
   <header class="top">
-    <h1>🚗 Trip Weather</h1>
-    <span id="net" class="net" hidden>offline</span>
+    <h1><i class="fa-solid fa-car-side" aria-hidden="true"></i> Trip Weather</h1>
+    <span id="net" class="net" hidden><i class="fa-solid fa-plug-circle-xmark" aria-hidden="true"></i> offline</span>
   </header>
 
   <main>
@@ -33,11 +43,12 @@
                    role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="from-list">
             <ul id="from-list" class="suggest" role="listbox" hidden></ul>
           </div>
-          <button type="button" id="locate" class="icon-btn" title="Use my location" aria-label="Use my location">📍</button>
+          <button type="button" id="locate" class="icon-btn locate" title="Use my location" aria-label="Use my location"><i class="fa-solid fa-location-crosshairs" aria-hidden="true"></i></button>
         </div>
+        <p id="locate-msg" class="locate-msg" role="status" aria-live="polite" hidden></p>
       </div>
       <ol id="vias" class="vias" aria-label="Stops on the way (in travel order)"></ol>
-      <button type="button" id="add-via" class="add-via">＋ Add stop</button>
+      <button type="button" id="add-via" class="add-via"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add stop</button>
       <div class="field">
         <label for="to">To</label>
         <div class="ac">
@@ -50,7 +61,7 @@
         <label for="depart">Departure</label>
         <div class="row">
           <input id="depart" name="depart" type="datetime-local" step="60" required>
-          <button type="button" id="swap" class="icon-btn" title="Reverse trip" aria-label="Reverse trip (swap from and to, reverse stops)">⇅</button>
+          <button type="button" id="swap" class="icon-btn" title="Reverse trip" aria-label="Reverse trip (swap from and to, reverse stops)"><i class="fa-solid fa-arrows-up-down" aria-hidden="true"></i></button>
         </div>
       </div>
       <button type="submit" id="go" class="primary">Get route weather</button>
@@ -61,7 +72,7 @@
 
     <div id="update" class="status update" role="alert" hidden>
       <span>A new version of Trip Weather is available.</span>
-      <button type="button" id="reload" class="small-btn">Reload</button>
+      <button type="button" id="reload" class="small-btn"><i class="fa-solid fa-rotate-right" aria-hidden="true"></i> Reload</button>
     </div>
 
     <section id="summary" class="card summary" hidden></section>
@@ -73,7 +84,8 @@
     Data: <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a> ·
     <a href="https://project-osrm.org/" rel="noopener">OSRM</a> ·
     <a href="https://www.openstreetmap.org/copyright" rel="noopener">© OpenStreetMap contributors</a> (Nominatim) ·
-    <a href="https://www.bigdatacloud.com/" rel="noopener">BigDataCloud</a>
+    <a href="https://www.bigdatacloud.com/" rel="noopener">BigDataCloud</a> ·
+    Icons: <a href="https://fontawesome.com/" rel="noopener">Font Awesome Free</a> (CC BY 4.0)
   </footer>
 
   <script src="lib.js"></script>

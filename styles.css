@@ -76,7 +76,7 @@ button { font: inherit; cursor: pointer; }
 .badge.end { background: #dc2626; }
 .stop.via .body { border-color: #f97316; border-width: 2px; }
 .stop.via .dot { border-color: #f97316; }
-.stop .wx { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.stop .wx { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 6px; font-variant-numeric: tabular-nums; }
 .stop .wx .t { font-weight: 700; font-size: 1.1rem; }
 .stop .wx .p { color: var(--rain); }
 .stop .na { margin-top: 6px; color: var(--muted); font-style: italic; }
@@ -97,3 +97,54 @@ button { font: inherit; cursor: pointer; }
 .add-via:disabled { color: var(--muted); cursor: default; }
 .small-btn { min-height: 36px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: var(--accent); font-weight: 600; }
 .update { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-color: var(--accent); }
+/* ---------- Font Awesome icons ---------- */
+.icon-btn .fa-solid { font-size: 1.05rem; }
+.icon-btn.sm .fa-solid { font-size: .95rem; }
+.icon-btn.rm { color: var(--err); }
+.top h1 .fa-car-side { color: var(--accent); margin-right: 2px; }
+.net .fa-solid { margin-right: 3px; }
+.add-via .fa-solid, .small-btn .fa-solid { margin-right: 2px; }
+.ic-muted { color: var(--muted); }
+.ic-rain, .stop .wx .p .fa-solid { color: var(--rain); }
+.ic-temp.cold { color: #0ea5e9; }
+.ic-temp.mild { color: #f59e0b; }
+.ic-temp.warm { color: #ef4444; }
+.summary .k .fa-solid { width: 1.1em; text-align: center; }
+.stop .meta .fa-solid { font-size: .8em; opacity: .8; margin-right: 1px; }
+.stop .wx .fa-solid { width: 1.15em; text-align: center; }
+.stop .wx .t .wx-ic { font-size: 1.05em; }
+.stop .dot .fa-solid { font-size: 1.25rem; }
+.stop.start .dot .fa-solid { color: #16a34a; }
+.stop.end .dot .fa-solid { color: #dc2626; }
+.stop.via .dot .fa-solid { color: #f97316; }
+/* weather tones (both themes) */
+.wx-clear { color: #f59e0b; }
+.wx-night { color: #818cf8; }
+.wx-partly { color: #eab308; }
+.wx-cloud { color: #64748b; }
+.wx-fog { color: #94a3b8; }
+.wx-rain { color: #3b82f6; }
+.wx-heavy { color: #1d4ed8; }
+.wx-ice { color: #06b6d4; }
+.wx-snow { color: #38bdf8; }
+.wx-storm { color: #7c3aed; }
+.wx-unknown { color: var(--muted); }
+@media (prefers-color-scheme: dark) {
+  .wx-cloud { color: #94a3b8; } .wx-heavy { color: #60a5fa; } .wx-storm { color: #a78bfa; }
+}
+/* use-my-location button states */
+.locate.busy { color: var(--accent); cursor: progress; }
+.locate.busy:disabled { opacity: 1; }
+.locate.ok { color: #16a34a; border-color: #16a34a; }
+.locate.fail { color: var(--err); border-color: var(--err); background: color-mix(in srgb, var(--err) 10%, transparent); }
+.locate-msg { margin: 6px 0 0; font-size: .85rem; color: var(--err); }
+/* install banner (top, slim) */
+.install { background: var(--accent); color: var(--accent-fg); }
+.install-bar { display: flex; align-items: center; gap: 8px; max-width: 720px; margin: 0 auto; padding: 6px 8px 6px 12px; }
+.install-btn { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 4px 12px; border: 0; border-radius: 99px;
+  background: var(--accent-fg); color: var(--accent); font-weight: 700; font-size: .9rem; }
+.install-sub { flex: 1 1 auto; min-width: 0; font-size: .8rem; opacity: .9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.install-x { flex: none; min-width: 36px; min-height: 36px; border: 0; border-radius: 99px; background: transparent; color: inherit; font-size: 1rem; }
+.install-help { max-width: 720px; margin: 0 auto; padding: 0 12px 8px; font-size: .85rem; }
+.install-help ol { margin: 0; padding-left: 1.3em; }
+.install-help .fa-solid { margin: 0 2px; }

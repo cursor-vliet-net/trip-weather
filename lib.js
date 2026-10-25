@@ -181,20 +181,33 @@
     return h ? `${h} h ${String(m % 60).padStart(2, '0')} min` : `${m} min`;
   }
 
-  // ---------- weather codes (WMO) ----------
+  // ---------- weather codes (WMO) → Font Awesome solid icon ----------
+  // [dayIcon, nightIcon, description, tone]; tone is a CSS class suffix (wx-<tone>) for the icon colour.
   const WMO = {
-    0: ['☀️', 'Clear'], 1: ['🌤️', 'Mainly clear'], 2: ['⛅', 'Partly cloudy'], 3: ['☁️', 'Overcast'],
-    45: ['🌫️', 'Fog'], 48: ['🌫️', 'Rime fog'],
-    51: ['🌦️', 'Light drizzle'], 53: ['🌦️', 'Drizzle'], 55: ['🌧️', 'Dense drizzle'],
-    56: ['🌧️', 'Freezing drizzle'], 57: ['🌧️', 'Freezing drizzle'],
-    61: ['🌦️', 'Light rain'], 63: ['🌧️', 'Rain'], 65: ['🌧️', 'Heavy rain'],
-    66: ['🌧️', 'Freezing rain'], 67: ['🌧️', 'Freezing rain'],
-    71: ['🌨️', 'Light snow'], 73: ['🌨️', 'Snow'], 75: ['❄️', 'Heavy snow'], 77: ['🌨️', 'Snow grains'],
-    80: ['🌦️', 'Rain showers'], 81: ['🌧️', 'Rain showers'], 82: ['⛈️', 'Violent showers'],
-    85: ['🌨️', 'Snow showers'], 86: ['❄️', 'Heavy snow showers'],
-    95: ['⛈️', 'Thunderstorm'], 96: ['⛈️', 'Thunderstorm, hail'], 99: ['⛈️', 'Thunderstorm, hail'],
+    0: ['sun', 'moon', 'Clear', 'clear'], 1: ['sun', 'moon', 'Mainly clear', 'clear'],
+    2: ['cloud-sun', 'cloud-moon', 'Partly cloudy', 'partly'], 3: ['cloud', 'cloud', 'Overcast', 'cloud'],
+    45: ['smog', 'smog', 'Fog', 'fog'], 48: ['smog', 'smog', 'Rime fog', 'fog'],
+    51: ['cloud-sun-rain', 'cloud-moon-rain', 'Light drizzle', 'rain'], 53: ['cloud-rain', 'cloud-rain', 'Drizzle', 'rain'],
+    55: ['cloud-rain', 'cloud-rain', 'Dense drizzle', 'rain'],
+    56: ['icicles', 'icicles', 'Freezing drizzle', 'ice'], 57: ['icicles', 'icicles', 'Freezing drizzle', 'ice'],
+    61: ['cloud-sun-rain', 'cloud-moon-rain', 'Light rain', 'rain'], 63: ['cloud-rain', 'cloud-rain', 'Rain', 'rain'],
+    65: ['cloud-showers-heavy', 'cloud-showers-heavy', 'Heavy rain', 'heavy'],
+    66: ['icicles', 'icicles', 'Freezing rain', 'ice'], 67: ['icicles', 'icicles', 'Freezing rain', 'ice'],
+    71: ['snowflake', 'snowflake', 'Light snow', 'snow'], 73: ['snowflake', 'snowflake', 'Snow', 'snow'],
+    75: ['snowflake', 'snowflake', 'Heavy snow', 'snow'], 77: ['snowflake', 'snowflake', 'Snow grains', 'snow'],
+    80: ['cloud-sun-rain', 'cloud-moon-rain', 'Rain showers', 'rain'], 81: ['cloud-showers-heavy', 'cloud-showers-heavy', 'Rain showers', 'heavy'],
+    82: ['cloud-showers-heavy', 'cloud-showers-heavy', 'Violent showers', 'heavy'],
+    85: ['snowflake', 'snowflake', 'Snow showers', 'snow'], 86: ['snowflake', 'snowflake', 'Heavy snow showers', 'snow'],
+    95: ['cloud-bolt', 'cloud-bolt', 'Thunderstorm', 'storm'], 96: ['cloud-bolt', 'cloud-bolt', 'Thunderstorm, hail', 'storm'],
+    99: ['cloud-bolt', 'cloud-bolt', 'Thunderstorm, hail', 'storm'],
   };
-  const weatherInfo = (code) => WMO[code] || ['❔', 'Unknown'];
+  /** weather_code (+ is_day 0/1, default day) → {icon, desc, tone}; icon is a Font Awesome solid name. */
+  function weatherInfo(code, isDay) {
+    const w = WMO[code];
+    if (!w) return { icon: 'circle-question', desc: 'Unknown', tone: 'unknown' };
+    const night = isDay === 0 || isDay === false;
+    return { icon: night ? w[1] : w[0], desc: w[2], tone: night && w[3] === 'clear' ? 'night' : w[3] };
+  }
 
   // ---------- fetch helpers ----------
   class ApiError extends Error {
@@ -323,7 +336,7 @@
     const lat = points.map((p) => p.lat.toFixed(4)).join(',');
     const lon = points.map((p) => p.lon.toFixed(4)).join(',');
     const url = `${API.forecast}?latitude=${lat}&longitude=${lon}` +
-      `&hourly=temperature_2m,precipitation,precipitation_probability,cloud_cover,weather_code` +
+      `&hourly=temperature_2m,precipitation,precipitation_probability,cloud_cover,weather_code,is_day` +
       `&timezone=auto&timeformat=unixtime&forecast_days=${FORECAST_DAYS}`;
     let data;
     try { data = await getJson(url, { timeoutMs: 20000 }); }
@@ -343,7 +356,7 @@
     return {
       timeMs: h.time[i] * 1000,
       temp: val(h.temperature_2m), precip: val(h.precipitation), precipProb: val(h.precipitation_probability),
-      cloud: val(h.cloud_cover), code: val(h.weather_code),
+      cloud: val(h.cloud_cover), code: val(h.weather_code), isDay: val(h.is_day),
     };
   }
 

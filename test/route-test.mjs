@@ -53,7 +53,7 @@ for (const [i, st] of stops.entries()) {
   const name = st.kind === 'start' ? from.label : st.kind === 'end' ? to.label : (await TW.reverseGeocode(st.lat, st.lon, { userAgent: UA })).name;
   rows.push({ ...st, name, wx, tz: fc.timezone });
   const eta = TW.formatLocal(st.etaMs, fc.timezone, fc.utc_offset_seconds, { day: 'numeric', month: 'short' });
-  const w = wx ? `${TW.weatherInfo(wx.code)[0]} ${wx.temp.toFixed(1).padStart(5)} °C  ${wx.precip.toFixed(1)} mm (${wx.precipProb ?? '–'}%)  cloud ${String(wx.cloud).padStart(3)}%  [slot ${TW.formatLocal(wx.timeMs, fc.timezone, null, { weekday: undefined })}]`
+  const w = wx ? `${TW.weatherInfo(wx.code, wx.isDay).desc.padEnd(14)} ${wx.temp.toFixed(1).padStart(5)} °C  ${wx.precip.toFixed(1)} mm (${wx.precipProb ?? '–'}%)  cloud ${String(wx.cloud).padStart(3)}%  [slot ${TW.formatLocal(wx.timeMs, fc.timezone, null, { weekday: undefined })}]`
     : TW.rangeReason(fc, st.etaMs);
   console.log(`${String(Math.round(st.km)).padStart(4)} km  ${eta.padEnd(16)} ${name.padEnd(34)} ${w}`);
 }

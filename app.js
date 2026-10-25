@@ -24,6 +24,20 @@
     return n;
   }
 
+  /**
+   * Font Awesome solid icon element (self-hosted css/fa.css). Built with createElement + className — never innerHTML.
+   * opts.label → meaningful icon (role=img, aria-label, title); otherwise decorative (aria-hidden).
+   */
+  function icon(name, opts) {
+    const i = document.createElement('i');
+    i.className = `fa-solid fa-${name}` + (opts && opts.cls ? ' ' + opts.cls : '');
+    if (opts && opts.label) { i.setAttribute('role', 'img'); i.setAttribute('aria-label', opts.label); i.title = opts.label; }
+    else i.setAttribute('aria-hidden', 'true');
+    return i;
+  }
+  /** Replace a button's content with icon + optional text. */
+  function setBtn(btn, name, text, cls) { btn.replaceChildren(icon(name, { cls }), ...(text ? [' ' + text] : [])); }
+
   // ---------- state ----------
   // A "slot" is one place input: {key, input, list, sel:{name,label,lat,lon}|null}. Vias add stayMin + row.
   const slots = { from: { key: 'from', input: $('from'), list: $('from-list'), sel: null },
@@ -115,7 +129,7 @@
     });
     const full = vias.length >= TW.MAX_VIAS;
     $('add-via').disabled = full;
-    $('add-via').textContent = full ? `Max ${TW.MAX_VIAS} stops` : '＋ Add stop';
+    if (full) setBtn($('add-via'), 'plus', `Max ${TW.MAX_VIAS} stops`); else setBtn($('add-via'), 'plus', 'Add stop');
   }
 
   /** Add a via row. init: {sel?, text?, stayMin?}. Returns the via slot. */
@@ -128,8 +142,9 @@
     const stay = el('input', { type: 'number', min: '0', max: '1440', step: '5', inputmode: 'numeric', class: 'stay',
       id: `${id}-stay`, 'aria-label': 'Stay at this stop, minutes' });
     const labelEl = el('label', { for: id });
-    const btn = (txt, title) => el('button', { type: 'button', class: 'icon-btn sm', title, 'aria-label': title, text: txt });
-    const up = btn('↑', 'Move stop up'), down = btn('↓', 'Move stop down'), rm = btn('✕', 'Remove stop');
+    const btn = (ic, title) => el('button', { type: 'button', class: 'icon-btn sm', title, 'aria-label': title }, icon(ic));
+    const up = btn('arrow-up', 'Move stop up'), down = btn('arrow-down', 'Move stop down'), rm = btn('xmark', 'Remove stop');
+    rm.classList.add('rm');
     const row = el('li', { class: 'field via' },
       labelEl,
       el('div', { class: 'row' }, el('div', { class: 'ac' }, input, list), rm),
@@ -239,22 +254,65 @@
     savePrefs();
   });
 
+  // Use-my-location button states: idle (crosshairs) → busy (spinner, disabled) → ok (check, 1.2 s) | fail (red warning
+  // icon + reason, 2.5 s) → idle. One timer + an attempt counter: a tap during the fail flash starts a fresh attempt and
+  // cancels the pending reset; late callbacks from an older attempt are ignored.
+  const locate = { btn: $('locate'), msg: $('locate-msg'), timer: null, attempt: 0 };
+  const LOCATE_TITLE = 'Use my location';
+  function locateState(state, reason) {
+    const { btn, msg } = locate;
+    clearTimeout(locate.timer); locate.timer = null;
+    btn.classList.remove('busy', 'ok', 'fail');
+    btn.removeAttribute('aria-busy');
+    if (state === 'busy') {
+      setBtn(btn, 'spinner', null, 'fa-spin'); btn.classList.add('busy'); btn.disabled = true; btn.setAttribute('aria-busy', 'true');
+      btn.title = 'Locating…'; btn.setAttribute('aria-label', 'Locating…');
+      msg.hidden = true; msg.textContent = '';
+      return;
+    }
+    btn.disabled = false;
+    if (state === 'ok' || state === 'fail') {
+      setBtn(btn, state === 'ok' ? 'check' : 'triangle-exclamation'); btn.classList.add(state);
+      const t = state === 'ok' ? 'Location found' : `Location failed: ${reason}`;
+      btn.title = t; btn.setAttribute('aria-label', t);
+      if (state === 'fail') { msg.textContent = reason; msg.hidden = false; }
+      locate.timer = setTimeout(() => locateState('idle'), state === 'ok' ? 1200 : 2500);
+      return;
+    }
+    setBtn(btn, 'location-crosshairs'); btn.title = LOCATE_TITLE; btn.setAttribute('aria-label', LOCATE_TITLE);
+    msg.hidden = true; msg.textContent = '';
+  }
+  function geoReason(err) {
+    if (!err) return 'Could not determine your location.';
+    if (err.code === 1) return 'Location permission denied — allow location for this site in your browser settings.';
+    if (err.code === 2) return 'Position unavailable — check that location/GPS is switched on.';
+    if (err.code === 3) return 'Timed out getting your location.';
+    return err.message || 'Could not determine your location.';
+  }
   $('locate').addEventListener('click', () => {
-    if (!('geolocation' in navigator)) { status('Geolocation is not supported by this browser.', 'error'); return; }
-    const btn = $('locate'); btn.disabled = true; status('Getting your location…');
+    const my = ++locate.attempt;
+    if (!window.isSecureContext) { locateState('fail', 'Location needs a secure (https) page.'); return; }
+    if (!('geolocation' in navigator)) { locateState('fail', 'Geolocation is not supported by this browser.'); return; }
+    locateState('busy');
+    // Watchdog: some browsers never call back when the permission prompt is ignored.
+    const watchdog = setTimeout(() => { if (my === locate.attempt) { locate.attempt++; locateState('fail', geoReason({ code: 3 })); } }, 20000);
     navigator.geolocation.getCurrentPosition(async (pos) => {
+      clearTimeout(watchdog);
+      if (my !== locate.attempt) return;
       const { latitude: lat, longitude: lon } = pos.coords;
       slots.from.sel = { name: 'My location', label: 'My location', lat, lon };
       $('from').value = 'My location';
-      status('');
+      locateState('ok'); savePrefs();
       try {
         const r = await TW.reverseGeocode(lat, lon, { language: LANG });
-        if (r.source !== 'coords') { slots.from.sel = { name: r.name, label: `📍 ${r.name}`, lat, lon }; $('from').value = slots.from.sel.label; }
+        if (my === locate.attempt && slots.from.sel && slots.from.sel.lat === lat && r.source !== 'coords') {
+          slots.from.sel = { name: r.name, label: r.name, lat, lon }; $('from').value = r.name; savePrefs();
+        }
       } catch (_) {}
-      btn.disabled = false; savePrefs();
     }, (err) => {
-      btn.disabled = false;
-      status(err.code === 1 ? 'Location permission denied.' : 'Could not determine your location.', 'error');
+      clearTimeout(watchdog);
+      if (my !== locate.attempt) return;
+      locateState('fail', geoReason(err));
     }, { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 });
   });
 
@@ -273,14 +331,20 @@
   const fmt1 = (v) => (v == null ? '–' : (Math.round(v * 10) / 10).toFixed(1));
   const fmt0 = (v) => (v == null ? '–' : String(Math.round(v)));
 
+  function tempIcon(t) {
+    const name = t == null ? 'temperature-half' : t < 0 ? 'temperature-empty' : t < 10 ? 'temperature-quarter'
+      : t < 20 ? 'temperature-half' : t < 28 ? 'temperature-three-quarters' : 'temperature-full';
+    const tone = t == null ? '' : t < 0 ? 'cold' : t < 20 ? 'mild' : 'warm';
+    return icon(name, { cls: `ic-temp ${tone}` });
+  }
   function renderSummary(sum, from, to, departMs, viaPlaces, link) {
     const box = $('summary');
-    const kv = (k, v) => el('div', null, el('div', { class: 'k', text: k }), el('div', { class: 'v', text: v }));
+    const kv = (ic, k, v) => el('div', null, el('div', { class: 'k' }, ic, ' ' + k), el('div', { class: 'v', text: v }));
     box.replaceChildren(
-      kv('Distance', `${Math.round(sum.km)} km`),
-      kv('Duration', TW.formatDuration(sum.durationS) + (sum.stayS ? ` + ${TW.formatDuration(sum.stayS)} stops` : '')),
-      kv('Temp range', sum.tMin == null ? '–' : `${fmt0(sum.tMin)} … ${fmt0(sum.tMax)} °C`),
-      kv('Max precip', sum.precipMax == null ? '–' : `${fmt1(sum.precipMax)} mm/h${sum.probMax != null ? ` · ${fmt0(sum.probMax)}%` : ''}`),
+      kv(icon('route', { cls: 'ic-muted' }), 'Distance', `${Math.round(sum.km)} km`),
+      kv(icon('clock', { cls: 'ic-muted' }), 'Duration', TW.formatDuration(sum.durationS) + (sum.stayS ? ` + ${TW.formatDuration(sum.stayS)} stops` : '')),
+      kv(tempIcon(sum.tMax), 'Temp range', sum.tMin == null ? '–' : `${fmt0(sum.tMin)} … ${fmt0(sum.tMax)} °C`),
+      kv(icon('droplet', { cls: 'ic-rain' }), 'Max precip', sum.precipMax == null ? '–' : `${fmt1(sum.precipMax)} mm/h${sum.probMax != null ? ` · ${fmt0(sum.probMax)}%` : ''}`),
       el('div', { class: 'full', text:
         [from, ...viaPlaces, to].map((p) => p.label).join(' → ') + ` · departs ${TW.formatLocal(departMs, undefined, undefined, { day: 'numeric', month: 'short' })} · ` +
         `${sum.stops} points, ${sum.withForecast} with forecast · driving (OSRM, no traffic)` }),
@@ -289,12 +353,13 @@
     box.hidden = false;
   }
   function shareBtn(link) {
-    const b = el('button', { type: 'button', class: 'small-btn', text: '🔗 Share trip link' });
+    const b = el('button', { type: 'button', class: 'small-btn' });
+    setBtn(b, 'share-nodes', 'Share trip link');
     b.addEventListener('click', async () => {
       try {
         if (navigator.share) { await navigator.share({ title: 'Trip Weather', url: link }); return; }
-        await navigator.clipboard.writeText(link); b.textContent = '✓ Link copied';
-      } catch (e) { if (!e || e.name !== 'AbortError') { b.textContent = 'Copy failed – see address bar'; } }
+        await navigator.clipboard.writeText(link); setBtn(b, 'check', 'Link copied');
+      } catch (e) { if (!e || e.name !== 'AbortError') { setBtn(b, 'triangle-exclamation', 'Copy failed – see address bar'); } }
     });
     return b;
   }
@@ -304,31 +369,34 @@
     const fmtT = (ms, o) => TW.formatLocal(ms, row.tz, row.offsetS, o);
     const eta = fmtT(row.etaMs, { day: 'numeric', month: 'short' });
     const meta = el('div', { class: 'meta' },
-      el('span', { text: `${Math.round(row.km)} km` }),
-      el('span', { text: row.kind === 'via' ? `arrive ${eta}` : eta }));
-    if (row.kind === 'via' && row.stayS > 0) meta.append(el('span', { text: `stay ${TW.formatDuration(row.stayS)} → leave ${fmtT(row.departMs, { weekday: undefined })}` }));
+      el('span', null, icon('route'), ` ${Math.round(row.km)} km`),
+      el('span', null, icon('clock'), ' ' + (row.kind === 'via' ? `arrive ${eta}` : eta)));
+    if (row.kind === 'via' && row.stayS > 0) meta.append(el('span', null, icon('hourglass-half'), ` stay ${TW.formatDuration(row.stayS)} → leave ${fmtT(row.departMs, { weekday: undefined })}`));
     const badge = row.kind === 'via' ? el('span', { class: 'badge', text: `via ${row.viaIndex + 1}` })
       : row.kind === 'start' ? el('span', { class: 'badge start', text: 'start' })
       : row.kind === 'end' ? el('span', { class: 'badge end', text: 'destination' }) : null;
     const head = el('div', { class: 'head' }, el('div', { class: 'title' }, badge, nameEl), meta);
-    let wxEl;
+    let wxEl, wxIcon;
     if (row.wx) {
-      const [emo, desc] = TW.weatherInfo(row.wx.code);
+      const w = TW.weatherInfo(row.wx.code, row.wx.isDay);
+      const wxIc = () => icon(w.icon, { cls: `wx-ic wx-${w.tone}`, label: w.desc });
+      wxIcon = wxIc();
       wxEl = [
         el('div', { class: 'wx' },
-          el('span', { class: 't', text: `${fmt1(row.wx.temp)} °C` }),
-          el('span', { class: 'p', text: `💧 ${fmt1(row.wx.precip)} mm${row.wx.precipProb != null ? ` (${fmt0(row.wx.precipProb)}%)` : ''}` }),
-          el('span', { text: `☁ ${fmt0(row.wx.cloud)}%` })),
-        el('div', { class: 'desc', text: `${desc} · forecast for ${fmtT(row.wx.timeMs, { weekday: undefined })}` }),
+          el('span', { class: 't' }, row.kind === 'sample' ? null : [wxIc(), ' '], tempIcon(row.wx.temp), ` ${fmt1(row.wx.temp)} °C`),
+          el('span', { class: 'p', title: 'Precipitation (probability)' }, icon('droplet'), ` ${fmt1(row.wx.precip)} mm${row.wx.precipProb != null ? ` (${fmt0(row.wx.precipProb)}%)` : ''}`),
+          el('span', { class: 'c', title: 'Cloud cover' }, icon('cloud', { cls: 'ic-muted' }), ` ${fmt0(row.wx.cloud)}%`)),
+        el('div', { class: 'desc', text: `${w.desc} · forecast for ${fmtT(row.wx.timeMs, { weekday: undefined })}` }),
       ];
-      row.emoji = emo;
     } else {
       wxEl = el('div', { class: 'na', text: row.reason });
-      row.emoji = '—';
+      wxIcon = icon('circle-question', { cls: 'wx-ic wx-unknown', label: 'No forecast' });
     }
-    const dot = row.kind === 'start' ? '🟢' : row.kind === 'end' ? '🏁' : row.kind === 'via' ? '📍' : row.emoji;
+    const dotIcon = row.kind === 'start' ? icon('circle-play', { label: 'Start' })
+      : row.kind === 'end' ? icon('flag-checkered', { label: 'Destination' })
+      : row.kind === 'via' ? icon('location-dot', { label: `Stop ${row.viaIndex + 1}` }) : wxIcon;
     const li = el('li', { class: `stop ${row.kind}` },
-      el('div', { class: 'dot', 'aria-hidden': 'true', text: dot }),
+      el('div', { class: 'dot' }, dotIcon),
       el('div', { class: 'body' }, head, wxEl));
     row.nameEl = nameEl;
     return li;
@@ -459,6 +527,68 @@
       if (my === runId) go.disabled = false;
     }
   });
+
+  // ---------- install banner ("Add to Home Screen") ----------
+  // Shown only when not running as an installed app. Chromium: stash beforeinstallprompt and call prompt() on click.
+  // Elsewhere (iOS Safari, Firefox, or after the prompt was dismissed) the button opens short manual instructions.
+  // ✕ hides the banner for 7 days (localStorage). 'appinstalled' hides it for good (until beforeinstallprompt fires again,
+  // which means the app was uninstalled).
+  (function installBanner() {
+    const box = $('install'), btn = $('install-btn'), help = $('install-help');
+    const HIDE_KEY = 'tw:installHiddenUntil', INSTALLED_KEY = 'tw:installed', WEEK = 7 * 24 * 3600 * 1000;
+    let deferred = null;
+    const store = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (_) {} };
+    const read = (k) => { try { return localStorage.getItem(k); } catch (_) { return null; } };
+    const mq = (q) => !!(window.matchMedia && matchMedia(q).matches);
+    const standalone = () => mq('(display-mode: standalone)') || mq('(display-mode: fullscreen)') ||
+      mq('(display-mode: minimal-ui)') || mq('(display-mode: window-controls-overlay)') || navigator.standalone === true;
+    const snoozed = () => +read(HIDE_KEY) > Date.now();
+    const ua = navigator.userAgent || '';
+    const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    function update() {
+      box.hidden = standalone() || snoozed() || read(INSTALLED_KEY) === '1';
+      if (box.hidden) help.hidden = true;
+    }
+    function showHelp() {
+      const step = (...kids) => el('li', null, ...kids);
+      let steps;
+      if (isIOS) {
+        steps = [step('Tap ', icon('arrow-up-from-bracket', { label: 'Share' }), ' Share in the browser toolbar.'),
+          step('Choose ', icon('square-plus', { label: 'Add to Home Screen' }), ' “Add to Home Screen”, then “Add”.')];
+      } else if (/Firefox\//.test(ua) && !/Android/.test(ua)) {
+        steps = [step('Firefox on desktop can’t install web apps. Open this page in Chrome or Edge, or bookmark it.')];
+      } else if (/SamsungBrowser/.test(ua)) {
+        steps = [step('Open the menu ', icon('ellipsis-vertical', { label: 'menu' }), ' → “Add page to” → “Home screen”.')];
+      } else {
+        steps = [step('Open the browser menu ', icon('ellipsis-vertical', { label: 'menu' }), '.'),
+          step('Choose “Install app” or “Add to Home screen”.')];
+      }
+      help.replaceChildren(el('ol', null, steps));
+      help.hidden = false;
+    }
+    addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault(); // keep Chrome's mini-infobar away; we offer our own button
+      deferred = e;
+      store(INSTALLED_KEY, null); // the prompt only fires when the app is not installed
+      update();
+    });
+    addEventListener('appinstalled', () => { deferred = null; store(INSTALLED_KEY, '1'); update(); });
+    btn.addEventListener('click', async () => {
+      if (!deferred) { if (help.hidden) showHelp(); else help.hidden = true; return; }
+      const ev = deferred; deferred = null; // a prompt event can only be used once
+      try {
+        await ev.prompt();
+        const choice = await ev.userChoice;
+        if (choice && choice.outcome === 'accepted') { store(INSTALLED_KEY, '1'); update(); }
+      } catch (_) { showHelp(); }
+    });
+    $('install-x').addEventListener('click', () => { store(HIDE_KEY, String(Date.now() + WEEK)); update(); });
+    if (window.matchMedia) {
+      const m = matchMedia('(display-mode: standalone)');
+      (m.addEventListener ? m.addEventListener.bind(m, 'change') : m.addListener.bind(m))(update);
+    }
+    update();
+  })();
 
   // ---------- service worker + update prompt ----------
   // sw.js calls skipWaiting()/clients.claim(), so a new version takes control right away; the running page
