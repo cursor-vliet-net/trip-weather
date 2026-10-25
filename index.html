@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Trip Weather</title>
+  <meta name="description" content="Weather forecast along a driving route: places between, ETA, temperature, precipitation, clouds.">
+  <meta name="theme-color" content="#0f766e" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0b1220" media="(prefers-color-scheme: dark)">
+  <meta name="color-scheme" content="light dark">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Trip Weather">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <h1>🚗 Trip Weather</h1>
+    <span id="net" class="net" hidden>offline</span>
+  </header>
+
+  <main>
+    <form id="trip" class="card form" autocomplete="off" novalidate>
+      <div class="field">
+        <label for="from">From</label>
+        <div class="row">
+          <div class="ac">
+            <input id="from" name="from" type="text" placeholder="e.g. Oslo" required
+                   role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="from-list">
+            <ul id="from-list" class="suggest" role="listbox" hidden></ul>
+          </div>
+          <button type="button" id="locate" class="icon-btn" title="Use my location" aria-label="Use my location">📍</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="to">To</label>
+        <div class="ac">
+          <input id="to" name="to" type="text" placeholder="e.g. Trondheim" required
+                 role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="to-list">
+          <ul id="to-list" class="suggest" role="listbox" hidden></ul>
+        </div>
+      </div>
+      <div class="field">
+        <label for="depart">Departure</label>
+        <div class="row">
+          <input id="depart" name="depart" type="datetime-local" step="60" required>
+          <button type="button" id="swap" class="icon-btn" title="Swap from/to" aria-label="Swap from and to">⇅</button>
+        </div>
+      </div>
+      <button type="submit" id="go" class="primary">Get route weather</button>
+      <p class="note">Driving route (OSRM). Departure time is your device's local time.</p>
+    </form>
+
+    <div id="status" class="status" role="status" aria-live="polite" hidden></div>
+
+    <section id="summary" class="card summary" hidden></section>
+    <div id="map" class="card map" hidden></div>
+    <ol id="stops" class="timeline" hidden></ol>
+  </main>
+
+  <footer class="foot">
+    Data: <a href="https://open-meteo.com/" rel="noopener">Open-Meteo</a> ·
+    <a href="https://project-osrm.org/" rel="noopener">OSRM</a> ·
+    <a href="https://www.openstreetmap.org/copyright" rel="noopener">© OpenStreetMap contributors</a> (Nominatim) ·
+    <a href="https://www.bigdatacloud.com/" rel="noopener">BigDataCloud</a>
+  </footer>
+
+  <script src="lib.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
