@@ -1,11 +1,11 @@
 /* Trip Weather service worker: app shell cache-first (revalidated), APIs network-only. */
-const VERSION = 'tw-v1';
+const VERSION = 'tw-v2'; // bump on every release so installed PWAs re-fetch the shell
 const SHELL = ['./', 'index.html', 'styles.css', 'lib.js', 'app.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 const RUNTIME = 'tw-runtime-v1'; // Leaflet lib from unpkg only
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' }))) /* bypass HTTP cache */).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (e) => {
@@ -25,7 +25,7 @@ self.addEventListener('fetch', (e) => {
       const cache = await caches.open(VERSION);
       const cached = await cache.match(req, { ignoreSearch: req.mode === 'navigate' }) ||
         (req.mode === 'navigate' ? await cache.match('index.html') : undefined);
-      const net = fetch(req).then((res) => { if (res.ok) cache.put(req, res.clone()); return res; }).catch(() => undefined);
+      const net = fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }).then((res) => { if (res.ok) cache.put(req, res.clone()); return res; }).catch(() => undefined);
       if (cached) { e.waitUntil(net); return cached; }
       const res = await net;
       return res || new Response('Offline', { status: 503, statusText: 'Offline' });

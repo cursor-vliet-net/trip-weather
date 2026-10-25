@@ -12,6 +12,7 @@
   }
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { margin: 0; }
 body {
   font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -57,16 +58,42 @@ button { font: inherit; cursor: pointer; }
 .map { height: 280px; padding: 0; overflow: hidden; }
 .timeline { list-style: none; margin: 0; padding: 0; position: relative; }
 .timeline::before { content: ""; position: absolute; left: 21px; top: 10px; bottom: 10px; width: 2px; background: var(--line); }
-.stop { position: relative; display: grid; grid-template-columns: 44px 1fr; gap: 8px; margin-bottom: 10px; }
+.stop { position: relative; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 8px; margin-bottom: 10px; }
 .stop .dot { width: 44px; height: 44px; border-radius: 50%; background: var(--card); border: 2px solid var(--line); display: grid; place-items: center; font-size: 1.3rem; z-index: 1; }
 .stop.start .dot, .stop.end .dot { border-color: var(--accent); }
 .stop .body { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; box-shadow: var(--shadow); }
-.stop .head { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
-.stop .name { font-weight: 600; overflow-wrap: anywhere; }
-.stop .meta { font-size: .85rem; color: var(--muted); white-space: nowrap; }
+/* Card header: title (badge + name) on its own full-width line, km/ETA on a wrapping secondary line.
+   No word-break:anywhere — names wrap only at word boundaries (break-word only for a single over-long word). */
+.stop .body { min-width: 0; }
+.stop .head { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.stop .title { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; min-width: 0; }
+.stop .name { font-weight: 600; flex: 1 1 auto; min-width: 0; overflow-wrap: break-word; word-break: normal; }
+.stop .meta { display: flex; flex-wrap: wrap; gap: 0 12px; font-size: .85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.stop .meta > span { white-space: nowrap; }
+.badge { flex: none; font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 1px 7px; border-radius: 99px;
+  background: #f97316; color: #fff; align-self: center; }
+.badge.start { background: #16a34a; }
+.badge.end { background: #dc2626; }
+.stop.via .body { border-color: #f97316; border-width: 2px; }
+.stop.via .dot { border-color: #f97316; }
 .stop .wx { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-variant-numeric: tabular-nums; }
 .stop .wx .t { font-weight: 700; font-size: 1.1rem; }
 .stop .wx .p { color: var(--rain); }
 .stop .na { margin-top: 6px; color: var(--muted); font-style: italic; }
 .stop .desc { font-size: .8rem; color: var(--muted); margin-top: 2px; }
 .foot { max-width: 720px; margin: 0 auto; padding: 8px 16px 24px; font-size: .75rem; color: var(--muted); }
+/* Via rows in the form */
+.vias { list-style: none; margin: 0; padding: 0 0 0 12px; border-left: 3px solid #f97316; }
+.vias:empty { display: none; }
+.via .via-opts { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.via .via-opts label.inline { display: inline; margin: 0; }
+.via .via-opts .stay { width: 5.5em; min-height: 40px; padding: 6px 8px; }
+.via .via-opts .unit { font-size: .85rem; color: var(--muted); }
+.via .via-opts .spacer { flex: 1; }
+.icon-btn.sm { min-width: 40px; min-height: 40px; font-size: 1rem; }
+.icon-btn:disabled { opacity: .35; cursor: default; }
+.add-via { display: block; width: 100%; min-height: 40px; margin: 0 0 12px; border: 1px dashed var(--line); border-radius: 10px;
+  background: transparent; color: var(--accent); font-weight: 600; }
+.add-via:disabled { color: var(--muted); cursor: default; }
+.small-btn { min-height: 36px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: var(--accent); font-weight: 600; }
+.update { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-color: var(--accent); }

@@ -52,24 +52,99 @@
   }
 
   /**
-   * Sample stops along the route geometry.
-   * routeKm / durationS come from OSRM; along-geometry fraction is used for both km display and ETA.
-   * Returns [{lon, lat, km, frac, etaMs, kind:'start'|'via'|'end'}].
+   * Geometry vertex index of each waypoint (incl. start/end) on the full multi-leg polyline.
+   * OSRM's snapped waypoint location is a vertex of the overview=full geometry; for robustness against
+   * routes that pass the same spot twice (out-and-back vias) we pick, among vertices within 50 m of the
+   * snapped location, the one whose along-geometry km is closest to the km expected from the leg distances.
    */
-  function sampleRoute(coords, routeKm, durationS, departMs) {
+  function legBoundaries(coords, cum, legs, waypoints) {
+    const last = coords.length - 1;
+    const geomKm = cum[last] || 1e-9;
+    const routeKm = legs.reduce((a, l) => a + l.km, 0) || 1e-9;
+    const idx = [0];
+    let legKm = 0;
+    for (let w = 1; w < legs.length; w++) {
+      legKm += legs[w - 1].km;
+      const expect = (legKm / routeKm) * geomKm;
+      const loc = waypoints && waypoints[w] && waypoints[w].location;
+      const prev = idx[idx.length - 1];
+      let best = -1;
+      if (loc) {
+        let bestScore = Infinity, nearest = -1, nearestD = Infinity;
+        for (let i = prev; i <= last; i++) {
+          const d = haversineKm(coords[i], loc);
+          if (d < nearestD) { nearestD = d; nearest = i; }
+          if (d <= 0.05) { const sc = Math.abs(cum[i] - expect); if (sc < bestScore) { bestScore = sc; best = i; } }
+        }
+        if (best < 0) best = nearest;
+      }
+      if (best < 0) { // no location: fall back to expected km
+        best = prev;
+        while (best < last && cum[best] < expect) best++;
+      }
+      idx.push(Math.max(prev, best));
+    }
+    idx.push(last);
+    return idx;
+  }
+
+  /**
+   * Sample stops along the (multi-leg) route geometry.
+   *   rt: {coords, km, durationS, legs:[{km, durationS}], legIdx:[vertex index per waypoint]} (from route())
+   *   opts.stayS: array (one per via) of dwell seconds added after arriving at that via.
+   * km = leg-start km + within-leg geometry share × leg km; ETA likewise uses the leg's OSRM duration, plus the
+   * dwell times of all vias already passed. A via's ETA is its arrival time.
+   * Returns [{lon, lat, km, frac, etaMs, kind:'start'|'sample'|'via'|'end', viaIndex?, stayS?, departMs?}].
+   * Legacy call sampleRoute(coords, routeKm, durationS, departMs) is still supported (single leg).
+   */
+  function sampleRoute(rt, departMs, opts) {
+    if (Array.isArray(rt)) { // legacy (coords, routeKm, durationS, departMs)
+      const [coords, routeKm, durationS, dep] = arguments;
+      rt = { coords, km: routeKm, durationS, legs: [{ km: routeKm, durationS }], legIdx: [0, coords.length - 1] };
+      departMs = dep; opts = undefined;
+    }
+    const { coords, legs } = rt;
     const cum = cumulativeKm(coords);
-    const geomKm = cum[cum.length - 1] || 1e-9;
+    const legIdx = rt.legIdx || legBoundaries(coords, cum, legs, rt.waypoints);
+    const stayS = (opts && opts.stayS) || [];
+    const routeKm = rt.km;
     const step = sampleIntervalKm(routeKm);
-    const stops = [];
-    const push = (geomD, kind) => {
-      const frac = Math.min(1, Math.max(0, geomD / geomKm));
-      const [lon, lat] = pointAtKm(coords, cum, geomD);
-      stops.push({ lon, lat, km: frac * routeKm, frac, etaMs: departMs + frac * durationS * 1000, kind });
+
+    // Per-leg accumulators: route-km and time offset (incl. dwell) at the start of each leg.
+    const legStartKm = [], legStartS = [];
+    let accKm = 0, accS = 0;
+    legs.forEach((l, i) => {
+      legStartKm.push(accKm); legStartS.push(accS);
+      accKm += l.km; accS += l.durationS + (i < legs.length - 1 ? Math.max(0, stayS[i] || 0) : 0);
+    });
+
+    // Position at route-km k → point on geometry + time offset.
+    const at = (leg, kInLeg) => {
+      const l = legs[leg];
+      const g0 = cum[legIdx[leg]], g1 = cum[legIdx[leg + 1]];
+      const share = l.km > 0 ? Math.min(1, Math.max(0, kInLeg / l.km)) : 0;
+      const [lon, lat] = pointAtKm(coords, cum, g0 + share * (g1 - g0));
+      return { lon, lat, km: legStartKm[leg] + share * l.km, etaMs: departMs + (legStartS[leg] + share * l.durationS) * 1000 };
     };
-    push(0, 'start');
-    // Steps are in route-km; map to geometry-km proportionally.
-    for (let k = step; k < routeKm - step * 0.4; k += step) push((k / routeKm) * geomKm, 'via');
-    push(geomKm, 'end');
+    const stops = [];
+    const add = (p, kind, extra) => stops.push(Object.assign(p, { frac: routeKm > 0 ? p.km / routeKm : 0, kind }, extra));
+
+    add(at(0, 0), 'start');
+    for (let leg = 0; leg < legs.length; leg++) {
+      const l = legs[leg];
+      const kStart = legStartKm[leg], kEnd = kStart + l.km;
+      // Global grid k = step, 2·step, … ; skip samples within 0.4·step of either leg end (a via/end is there).
+      for (let k = Math.ceil((kStart + 1e-9) / step) * step; k < kEnd - step * 0.4; k += step) {
+        if (k - kStart < step * 0.4) continue;
+        add(at(leg, k - kStart), 'sample');
+      }
+      if (leg < legs.length - 1) {
+        const p = at(leg, l.km);
+        const s = Math.max(0, stayS[leg] || 0);
+        add(p, 'via', { viaIndex: leg, stayS: s, departMs: p.etaMs + s * 1000 });
+      }
+    }
+    add(at(legs.length - 1, legs[legs.length - 1].km), 'end');
     return stops;
   }
 
@@ -90,7 +165,7 @@
 
   /** Format epoch ms in an IANA zone; falls back to fixed offset if zone unknown. */
   function formatLocal(ms, timeZone, offsetS, opts) {
-    const o = Object.assign({ weekday: 'short', hour: '2-digit', minute: '2-digit', hour12: false }, opts || {});
+    const o = Object.assign({ weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }, opts || {});
     try {
       if (timeZone) return new Intl.DateTimeFormat(undefined, Object.assign({ timeZone }, o)).format(new Date(ms));
     } catch (_) { /* fall through */ }
@@ -154,23 +229,42 @@
     }));
   }
 
-  /** OSRM driving route. Returns {coords:[[lon,lat]...], km, durationS}. */
-  async function route(from, to) {
-    const url = `${API.osrm}${from.lon},${from.lat};${to.lon},${to.lat}?overview=full&geometries=geojson&steps=false`;
+  const MAX_VIAS = 8;
+  const SNAP_MAX_M = 5000;
+
+  /**
+   * OSRM driving route through all points in order (one request: "from;via1;…;to").
+   * route(points[]) or legacy route(from, to). Points: {lat, lon}.
+   * Returns {coords:[[lon,lat]...], km, durationS, legs:[{km,durationS}], waypoints, legIdx}.
+   */
+  async function route(points, maybeTo) {
+    const pts = Array.isArray(points) ? points : [points, maybeTo];
+    if (pts.length < 2) throw new ApiError('Route needs at least a start and a destination.', 'input');
+    const path = pts.map((p) => `${(+p.lon).toFixed(6)},${(+p.lat).toFixed(6)}`).join(';');
+    const url = `${API.osrm}${path}?overview=full&geometries=geojson&steps=false`;
     let data;
     try { data = await getJson(url, { timeoutMs: 25000 }); }
     catch (e) { throw new ApiError(`Routing failed: ${e.message}`, e.kind); }
     if (data.code !== 'Ok' || !data.routes || !data.routes.length) {
       throw new ApiError(data.code === 'NoRoute' ? 'No driving route found between these places.' : `Routing failed (${data.code || 'unknown'}${data.message ? ': ' + data.message : ''})`, 'route');
     }
-    // OSRM snaps endpoints to the nearest road; a far snap means there is no real road route (e.g. across an ocean).
-    const snap = (data.waypoints || []).map((w) => w.distance || 0);
-    const SNAP_MAX_M = 5000;
-    snap.forEach((d, i) => {
-      if (d > SNAP_MAX_M) throw new ApiError(`No driving route: ${i ? 'destination' : 'start'} is ${Math.round(d / 1000)} km from the nearest routable road.`, 'route');
+    // OSRM snaps every waypoint to the nearest road; a far snap means there is no real road route (e.g. across an ocean).
+    const wps = data.waypoints || [];
+    wps.forEach((w, i) => {
+      const d = w.distance || 0;
+      if (d > SNAP_MAX_M) {
+        const which = i === 0 ? 'start' : i === wps.length - 1 ? 'destination' : `via ${i}${pts[i] && pts[i].name ? ` (${pts[i].name})` : ''}`;
+        throw new ApiError(`No driving route: ${which} is ${Math.round(d / 1000)} km from the nearest routable road.`, 'route');
+      }
     });
     const r = data.routes[0];
-    return { coords: r.geometry.coordinates, km: r.distance / 1000, durationS: r.duration };
+    const coords = r.geometry.coordinates;
+    const legs = (r.legs && r.legs.length === pts.length - 1)
+      ? r.legs.map((l) => ({ km: l.distance / 1000, durationS: l.duration }))
+      : [{ km: r.distance / 1000, durationS: r.duration }];
+    const out = { coords, km: r.distance / 1000, durationS: r.duration, legs, waypoints: wps };
+    out.legIdx = legBoundaries(coords, cumulativeKm(coords), legs, legs.length > 1 ? wps : null);
+    return out;
   }
 
   // ---------- reverse geocoding with cache + rate limit ----------
@@ -267,14 +361,15 @@
     const precs = w.map((x) => x.precip).filter((v) => v != null);
     const probs = w.map((x) => x.precipProb).filter((v) => v != null);
     return {
-      km: rt.km, durationS: rt.durationS, stops: rows.length, withForecast: w.length,
+      km: rt.km, durationS: rt.durationS, stops: rows.length,
+      stayS: rows.reduce((a, r) => a + (r.kind === 'via' ? r.stayS || 0 : 0), 0), withForecast: w.length,
       tMin: temps.length ? Math.min(...temps) : null, tMax: temps.length ? Math.max(...temps) : null,
       precipMax: precs.length ? Math.max(...precs) : null, probMax: probs.length ? Math.max(...probs) : null,
     };
   }
 
   const TW = {
-    API, haversineKm, cumulativeKm, sampleIntervalKm, pointAtKm, sampleRoute, nearestHourIndex,
+    API, MAX_VIAS, haversineKm, cumulativeKm, sampleIntervalKm, pointAtKm, legBoundaries, sampleRoute, nearestHourIndex,
     formatLocal, formatDuration, weatherInfo, geocode, route, reverseGeocode, forecastMulti,
     pickWeather, rangeReason, summarize, ApiError,
   };

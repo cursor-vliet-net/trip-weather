@@ -36,6 +36,8 @@
           <button type="button" id="locate" class="icon-btn" title="Use my location" aria-label="Use my location">📍</button>
         </div>
       </div>
+      <ol id="vias" class="vias" aria-label="Stops on the way (in travel order)"></ol>
+      <button type="button" id="add-via" class="add-via">＋ Add stop</button>
       <div class="field">
         <label for="to">To</label>
         <div class="ac">
@@ -48,7 +50,7 @@
         <label for="depart">Departure</label>
         <div class="row">
           <input id="depart" name="depart" type="datetime-local" step="60" required>
-          <button type="button" id="swap" class="icon-btn" title="Swap from/to" aria-label="Swap from and to">⇅</button>
+          <button type="button" id="swap" class="icon-btn" title="Reverse trip" aria-label="Reverse trip (swap from and to, reverse stops)">⇅</button>
         </div>
       </div>
       <button type="submit" id="go" class="primary">Get route weather</button>
@@ -56,6 +58,11 @@
     </form>
 
     <div id="status" class="status" role="status" aria-live="polite" hidden></div>
+
+    <div id="update" class="status update" role="alert" hidden>
+      <span>A new version of Trip Weather is available.</span>
+      <button type="button" id="reload" class="small-btn">Reload</button>
+    </div>
 
     <section id="summary" class="card summary" hidden></section>
     <div id="map" class="card map" hidden></div>

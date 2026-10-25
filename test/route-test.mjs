@@ -13,6 +13,7 @@ const s = TW.sampleRoute(line, 111.2, 3600, 0);
 assert.equal(s[0].kind, 'start'); assert.equal(s.at(-1).kind, 'end');
 assert.ok(Math.abs(s.at(-1).etaMs - 3600e3) < 1);
 assert.ok(s.every((p, i) => i === 0 || p.km > s[i - 1].km), 'monotonic km');
+assert.ok(s.slice(1, -1).every((p) => p.kind === 'sample'), 'intermediate points are samples');
 assert.equal(TW.nearestHourIndex([0, 3600, 7200], 3500e3), 1);
 assert.equal(TW.nearestHourIndex([0, 3600, 7200], -6000e3), -1);
 assert.equal(TW.nearestHourIndex([0, 3600, 7200], 13000e3), -1);
@@ -41,8 +42,8 @@ if (whenArg) { const [d, t] = whenArg.split('T'); const [y, mo, da] = d.split('-
 else { const t = new Date(Date.now() + 86400e3); const ymd = new Intl.DateTimeFormat('en-CA', { timeZone: from.timezone }).format(t).split('-').map(Number); departMs = zonedToUtcMs(...ymd, 8, 0, from.timezone); }
 console.log(`Depart: ${TW.formatLocal(departMs, from.timezone, null, { day: 'numeric', month: 'short' })} (${from.timezone}) = ${new Date(departMs).toISOString()}`);
 
-const rt = await TW.route(from, to);
-const stops = TW.sampleRoute(rt.coords, rt.km, rt.durationS, departMs);
+const rt = await TW.route([from, to]);
+const stops = TW.sampleRoute(rt, departMs);
 console.log(`Route: ${rt.km.toFixed(1)} km, ${TW.formatDuration(rt.durationS)}, ${rt.coords.length} vertices, step ${TW.sampleIntervalKm(rt.km).toFixed(1)} km, ${stops.length} stops`);
 const fcs = await TW.forecastMulti(stops);
 const rows = [];
